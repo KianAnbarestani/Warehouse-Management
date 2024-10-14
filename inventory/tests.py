@@ -1,3 +1,5 @@
+# inventory/tests.py
+
 from django.test import TestCase
 from rest_framework.test import APIClient
 from rest_framework import status
@@ -20,31 +22,31 @@ class WarehouseManagementTestCase(TestCase):
 
     def test_input_transaction_fifo(self):
         response = self.client.post('/api/inventory/input/', {
-            'ware': self.ware_fifo.id,
+            'ware_id': self.ware_fifo.id,
             'quantity': 100,
             'purchase_price': '20.00'
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Factor.objects.filter(ware=self.ware_fifo, type='input').count(), 1)
+        self.assertEqual(Factor.objects.filter(ware_id=self.ware_fifo.id, type='input').count(), 1)
 
     def test_input_transaction_weighted(self):
         response = self.client.post('/api/inventory/input/', {
-            'ware': self.ware_weighted.id,
+            'ware_id': self.ware_weighted.id,
             'quantity': 100,
             'purchase_price': '20.00'
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Factor.objects.filter(ware=self.ware_weighted, type='input').count(), 1)
+        self.assertEqual(Factor.objects.filter(ware_id=self.ware_weighted.id, type='input').count(), 1)
 
     def test_output_transaction_fifo(self):
         # Input transactions
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_fifo.id,
+            'ware_id': self.ware_fifo.id,
             'quantity': 100,
             'purchase_price': '20.00'
         }, format='json')
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_fifo.id,
+            'ware_id': self.ware_fifo.id,
             'quantity': 50,
             'purchase_price': '22.00'
         }, format='json')
@@ -59,12 +61,12 @@ class WarehouseManagementTestCase(TestCase):
     def test_output_transaction_weighted(self):
         # Input transactions
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_weighted.id,
+            'ware_id': self.ware_weighted.id,
             'quantity': 100,
             'purchase_price': '20.00'
         }, format='json')
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_weighted.id,
+            'ware_id': self.ware_weighted.id,
             'quantity': 50,
             'purchase_price': '22.00'
         }, format='json')
@@ -89,12 +91,12 @@ class WarehouseManagementTestCase(TestCase):
     def test_inventory_valuation_fifo(self):
         # Input transactions
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_fifo.id,
+            'ware_id': self.ware_fifo.id,
             'quantity': 100,
             'purchase_price': '20.00'
         }, format='json')
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_fifo.id,
+            'ware_id': self.ware_fifo.id,
             'quantity': 50,
             'purchase_price': '22.00'
         }, format='json')
@@ -112,12 +114,12 @@ class WarehouseManagementTestCase(TestCase):
     def test_inventory_valuation_weighted(self):
         # Input transactions
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_weighted.id,
+            'ware_id': self.ware_weighted.id,
             'quantity': 100,
             'purchase_price': '20.00'
         }, format='json')
         self.client.post('/api/inventory/input/', {
-            'ware': self.ware_weighted.id,
+            'ware_id': self.ware_weighted.id,
             'quantity': 50,
             'purchase_price': '22.00'
         }, format='json')

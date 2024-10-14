@@ -1,3 +1,5 @@
+# inventory/views.py
+
 from rest_framework import generics, status
 from rest_framework.response import Response
 from rest_framework.views import APIView
@@ -10,6 +12,7 @@ from .serializers import (
     FactorInputSerializer,
     FactorOutputSerializer,
     InventoryValuationSerializer,
+    FactorOutputResponseSerializer,
 )
 from collections import deque
 
@@ -22,10 +25,10 @@ class FactorInputView(APIView):
         serializer = FactorInputSerializer(data=request.data)
         if serializer.is_valid():
             with transaction.atomic():
-                ware = get_object_or_404(Ware, id=serializer.validated_data['ware'].id)
+                ware = serializer.validated_data['ware']
                 quantity = serializer.validated_data['quantity']
-                purchase_price = serializer.validated_data['purchase_price']
-                total_cost = Decimal(quantity) * Decimal(purchase_price)
+                purchase_price = serializer.validated_data.get('purchase_price', None)
+                total_cost = Decimal(quantity) * Decimal(purchase_price) if purchase_price else Decimal('0.00')
 
                 factor = Factor.objects.create(
                     ware=ware,
@@ -38,7 +41,7 @@ class FactorInputView(APIView):
                 "factor_id": factor.id,
                 "ware_id": factor.ware.id,
                 "quantity": factor.quantity,
-                "purchase_price": str(factor.purchase_price),  # Ensure string
+                "purchase_price": str(factor.purchase_price) if factor.purchase_price else None,
                 "created_at": factor.created_at,
                 "type": factor.type
             }, status=status.HTTP_201_CREATED)
@@ -63,19 +66,13 @@ class FactorOutputView(APIView):
                     total_cost=total_cost,
                     type='output'
                 )
-            # Prepare data for serialization
-            response_data = {
-                "ware_id": ware.id,
-                "quantity_in_stock": stock,  # Not directly used here
-                "total_inventory_value": total_cost  # This is the total cost of this output
-            }
-
-            # Alternatively, if you want to return specific fields:
+            # Use the response serializer
+            response_serializer = FactorOutputResponseSerializer(factor)
             return Response({
                 "factor_id": factor.id,
-                "ware_id": ware.id,
+                "ware_id": factor.ware.id,
                 "quantity": factor.quantity,
-                "total_cost": str(factor.total_cost),  # Convert Decimal to string
+                "total_cost": str(factor.total_cost),
                 "created_at": factor.created_at,
                 "type": factor.type
             }, status=status.HTTP_201_CREATED)
@@ -101,7 +98,8 @@ class InventoryValuationView(APIView):
         
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-# Helper functions for cost calculations remain unchanged
+# Helper functions for cost calculations
+
 def calculate_output_cost(ware, quantity):
     if ware.cost_method == 'fifo':
         factors = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
@@ -151,7 +149,7 @@ def calculate_inventory_valuation(ware):
         # FIFO valuation
         inputs = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
         total_quantity = sum(f.quantity for f in inputs)
-        total_inventory_value = sum(f.quantity * f.purchase_price for f in inputs)  # Renamed variable
+        total_inventory_value = sum(f.quantity * f.purchase_price for f in inputs)
     elif ware.cost_method == 'weighted_mean':
         # Weighted Mean valuation
         inputs = Factor.objects.filter(ware=ware, type='input')
