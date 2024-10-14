@@ -23,3 +23,8 @@ class FactorOutputResponseSerializer(serializers.ModelSerializer):
     class Meta:
         model = Factor
         fields = ['id', 'ware', 'quantity', 'total_cost', 'created_at', 'type']
+        
+class InventoryValuationSerializer(serializers.Serializer):
+    ware_id = serializers.IntegerField()
+    quantity_in_stock = serializers.IntegerField()
+    total_inventory_value = serializers.DecimalField(max_digits=10, decimal_places=2)

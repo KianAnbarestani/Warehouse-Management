@@ -10,7 +10,6 @@ from .serializers import (
     FactorInputSerializer,
     FactorOutputSerializer,
     InventoryValuationSerializer,
-    FactorOutputResponseSerializer,  # Ensure this serializer exists
 )
 from collections import deque
 
@@ -64,8 +63,14 @@ class FactorOutputView(APIView):
                     total_cost=total_cost,
                     type='output'
                 )
-            # Use the response serializer
-            response_serializer = FactorOutputResponseSerializer(factor)
+            # Prepare data for serialization
+            response_data = {
+                "ware_id": ware.id,
+                "quantity_in_stock": stock,  # Not directly used here
+                "total_inventory_value": total_cost  # This is the total cost of this output
+            }
+
+            # Alternatively, if you want to return specific fields:
             return Response({
                 "factor_id": factor.id,
                 "ware_id": ware.id,
@@ -83,16 +88,20 @@ class InventoryValuationView(APIView):
             return Response({"error": "ware_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         ware = get_object_or_404(Ware, id=ware_id)
-        total_quantity, total_value = calculate_inventory_valuation(ware)
+        total_quantity, total_inventory_value = calculate_inventory_valuation(ware)
         
-        return Response({
+        # Prepare data for serialization
+        valuation_data = {
             "ware_id": ware.id,
             "quantity_in_stock": total_quantity,
-            "total_inventory_value": str(total_value)  # Convert Decimal to string
-        }, status=status.HTTP_200_OK)
+            "total_inventory_value": total_inventory_value
+        }
+        
+        serializer = InventoryValuationSerializer(valuation_data)
+        
+        return Response(serializer.data, status=status.HTTP_200_OK)
 
-# Helper functions for cost calculations
-
+# Helper functions for cost calculations remain unchanged
 def calculate_output_cost(ware, quantity):
     if ware.cost_method == 'fifo':
         factors = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
@@ -142,7 +151,7 @@ def calculate_inventory_valuation(ware):
         # FIFO valuation
         inputs = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
         total_quantity = sum(f.quantity for f in inputs)
-        total_value = sum(f.quantity * f.purchase_price for f in inputs)
+        total_inventory_value = sum(f.quantity * f.purchase_price for f in inputs)  # Renamed variable
     elif ware.cost_method == 'weighted_mean':
         # Weighted Mean valuation
         inputs = Factor.objects.filter(ware=ware, type='input')
