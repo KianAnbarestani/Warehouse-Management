@@ -110,7 +110,7 @@ class WarehouseManagementTestCase(TestCase):
         self.assertEqual(float(response.data['total_inventory_value']), 660.00)  # 30 * 22.00
 
     def test_inventory_valuation_weighted(self):
-        # Input transactions
+    # Input transactions
         self.client.post('/api/inventory/input/', {
             'ware': self.ware_weighted.id,
             'quantity': 100,
@@ -130,7 +130,4 @@ class WarehouseManagementTestCase(TestCase):
         response = self.client.get(f'/api/inventory/valuation/?ware_id={self.ware_weighted.id}')
         self.assertEqual(response.status_code, status.HTTP_200_OK)
         self.assertEqual(response.data['quantity_in_stock'], 30)
-        # Weighted mean cost: 2480.00 for 120 units removed, remaining 30 units
-        # Total initial cost: 100*20 + 50*22 = 2000 + 1100 = 3100
-        # Remaining cost: 3100 - 2480 = 620 => 620 / 30 = ~20.6667 per unit
         self.assertAlmostEqual(float(response.data['total_inventory_value']), 620.00, places=2)
