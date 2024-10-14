@@ -110,7 +110,7 @@ class WarehouseManagementTestCase(TestCase):
         self.assertEqual(float(response.data['total_inventory_value']), 660.00)  # 30 * 22.00
 
     def test_inventory_valuation_weighted(self):
-    # Input transactions
+        # Input transactions
         self.client.post('/api/inventory/input/', {
             'ware': self.ware_weighted.id,
             'quantity': 100,

@@ -10,7 +10,7 @@ from .serializers import (
     FactorInputSerializer,
     FactorOutputSerializer,
     InventoryValuationSerializer,
-    FactorOutputResponseSerializer,  # New Serializer
+    FactorOutputResponseSerializer,  # Ensure this serializer exists
 )
 from collections import deque
 
@@ -83,19 +83,19 @@ class InventoryValuationView(APIView):
             return Response({"error": "ware_id is required"}, status=status.HTTP_400_BAD_REQUEST)
         
         ware = get_object_or_404(Ware, id=ware_id)
-        stock, total_value = calculate_inventory_valuation(ware)
+        total_quantity, total_value = calculate_inventory_valuation(ware)
         
         return Response({
             "ware_id": ware.id,
-            "quantity_in_stock": stock,
+            "quantity_in_stock": total_quantity,
             "total_inventory_value": str(total_value)  # Convert Decimal to string
         }, status=status.HTTP_200_OK)
 
 # Helper functions for cost calculations
 
 def calculate_output_cost(ware, quantity):
-    factors = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
     if ware.cost_method == 'fifo':
+        factors = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
         return calculate_fifo_cost(factors, quantity)
     elif ware.cost_method == 'weighted_mean':
         return calculate_weighted_mean_cost(ware, quantity)
@@ -125,46 +125,44 @@ def calculate_fifo_cost(factors, quantity):
 
 def calculate_weighted_mean_cost(ware, quantity):
     inputs = Factor.objects.filter(ware=ware, type='input')
-    total_quantity = sum([f.quantity for f in inputs])
-    total_cost = sum([f.quantity * f.purchase_price for f in inputs])
+    total_quantity = sum(f.quantity for f in inputs)
+    total_cost = sum(f.quantity * f.purchase_price for f in inputs)
 
     if total_quantity < quantity:
-        return None, None
+        return None, None  # Insufficient stock
 
     average_cost = total_cost / Decimal(total_quantity)
     total_output_cost = average_cost * Decimal(quantity)
 
-    # Update quantities
-    remaining = quantity
-    for factor in inputs:
-        if remaining <= 0:
-            break
-        available = factor.quantity
-        take = min(available, remaining)
-        factor.quantity -= take
-        factor.save()
-        remaining -= take
-
-    return quantity - remaining, total_output_cost
+    # Do not adjust input factors' quantities
+    return quantity, total_output_cost
 
 def calculate_inventory_valuation(ware):
     if ware.cost_method == 'fifo':
-        # For FIFO, sum the remaining input quantities
+        # FIFO valuation
         inputs = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
-        total_quantity = sum([f.quantity for f in inputs])
-        total_value = sum([f.quantity * f.purchase_price for f in inputs])
+        total_quantity = sum(f.quantity for f in inputs)
+        total_value = sum(f.quantity * f.purchase_price for f in inputs)
     elif ware.cost_method == 'weighted_mean':
-        # For Weighted Mean, calculate based on remaining inputs
+        # Weighted Mean valuation
         inputs = Factor.objects.filter(ware=ware, type='input')
-        total_quantity = sum([f.quantity for f in inputs])
-        total_cost = sum([f.quantity * f.purchase_price for f in inputs])
+        outputs = Factor.objects.filter(ware=ware, type='output')
+        
+        total_input_cost = sum(f.total_cost for f in inputs)
+        total_output_cost = sum(f.total_cost for f in outputs)
+        
+        remaining_cost = total_input_cost - total_output_cost
+        total_quantity = sum(f.quantity for f in inputs) - sum(f.quantity for f in outputs)
+        
         if total_quantity > 0:
-            average_cost = total_cost / Decimal(total_quantity)
-            total_value = average_cost * Decimal(total_quantity)
+            average_cost = remaining_cost / Decimal(total_quantity)
+            total_inventory_value = remaining_cost  # Equivalent to average_cost * total_quantity
         else:
-            total_value = Decimal('0.00')
+            average_cost = Decimal('0.00')
+            total_inventory_value = Decimal('0.00')
     else:
+        # Handle other cost methods if any
         total_quantity = 0
-        total_value = Decimal('0.00')
+        total_inventory_value = Decimal('0.00')
     
-    return total_quantity, total_value
+    return total_quantity, total_inventory_value
