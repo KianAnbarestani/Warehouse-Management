@@ -10,6 +10,7 @@ from .serializers import (
     FactorInputSerializer,
     FactorOutputSerializer,
     InventoryValuationSerializer,
+    FactorOutputResponseSerializer,  # New Serializer
 )
 from collections import deque
 
@@ -38,7 +39,7 @@ class FactorInputView(APIView):
                 "factor_id": factor.id,
                 "ware_id": factor.ware.id,
                 "quantity": factor.quantity,
-                "purchase_price": factor.purchase_price,
+                "purchase_price": str(factor.purchase_price),  # Ensure string
                 "created_at": factor.created_at,
                 "type": factor.type
             }, status=status.HTTP_201_CREATED)
@@ -63,11 +64,13 @@ class FactorOutputView(APIView):
                     total_cost=total_cost,
                     type='output'
                 )
+            # Use the response serializer
+            response_serializer = FactorOutputResponseSerializer(factor)
             return Response({
                 "factor_id": factor.id,
                 "ware_id": ware.id,
                 "quantity": factor.quantity,
-                "total_cost": factor.total_cost,
+                "total_cost": str(factor.total_cost),  # Convert Decimal to string
                 "created_at": factor.created_at,
                 "type": factor.type
             }, status=status.HTTP_201_CREATED)
@@ -85,7 +88,7 @@ class InventoryValuationView(APIView):
         return Response({
             "ware_id": ware.id,
             "quantity_in_stock": stock,
-            "total_inventory_value": total_value
+            "total_inventory_value": str(total_value)  # Convert Decimal to string
         }, status=status.HTTP_200_OK)
 
 # Helper functions for cost calculations
@@ -128,7 +131,7 @@ def calculate_weighted_mean_cost(ware, quantity):
     if total_quantity < quantity:
         return None, None
 
-    average_cost = total_cost / total_quantity
+    average_cost = total_cost / Decimal(total_quantity)
     total_output_cost = average_cost * Decimal(quantity)
 
     # Update quantities
@@ -145,24 +148,23 @@ def calculate_weighted_mean_cost(ware, quantity):
     return quantity - remaining, total_output_cost
 
 def calculate_inventory_valuation(ware):
-    factors = Factor.objects.filter(ware=ware).order_by('created_at')
-    total_quantity = sum([f.quantity for f in factors if f.type == 'input']) - \
-                     sum([f.quantity for f in factors if f.type == 'output'])
-    
     if ware.cost_method == 'fifo':
-        
+        # For FIFO, sum the remaining input quantities
         inputs = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
+        total_quantity = sum([f.quantity for f in inputs])
         total_value = sum([f.quantity * f.purchase_price for f in inputs])
     elif ware.cost_method == 'weighted_mean':
+        # For Weighted Mean, calculate based on remaining inputs
         inputs = Factor.objects.filter(ware=ware, type='input')
-        total_cost = sum([f.quantity * f.purchase_price for f in inputs])
         total_quantity = sum([f.quantity for f in inputs])
+        total_cost = sum([f.quantity * f.purchase_price for f in inputs])
         if total_quantity > 0:
-            average_cost = total_cost / total_quantity
+            average_cost = total_cost / Decimal(total_quantity)
             total_value = average_cost * Decimal(total_quantity)
         else:
             total_value = Decimal('0.00')
     else:
+        total_quantity = 0
         total_value = Decimal('0.00')
     
     return total_quantity, total_value
