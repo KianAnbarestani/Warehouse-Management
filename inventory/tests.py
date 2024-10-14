@@ -14,11 +14,17 @@ class WarehouseManagementTestCase(TestCase):
         self.ware_weighted = Ware.objects.create(name="Widget Weighted", cost_method="weighted_mean")
 
     def test_create_ware(self):
+        # Attempt to create a ware with a unique name
         response = self.client.post('/api/wares/', {'name': 'Widget A', 'cost_method': 'fifo'}, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
         self.assertEqual(Ware.objects.count(), 3)
         self.assertEqual(response.data['name'], 'Widget A')
         self.assertEqual(response.data['cost_method'], 'fifo')
+
+        # Attempt to create a ware with an existing name (should fail due to unique constraint)
+        response_duplicate = self.client.post('/api/wares/', {'name': 'Widget A', 'cost_method': 'fifo'}, format='json')
+        self.assertEqual(response_duplicate.status_code, status.HTTP_400_BAD_REQUEST)
+        self.assertIn('name', response_duplicate.data)
 
     def test_input_transaction_fifo(self):
         response = self.client.post('/api/inventory/input/', {
@@ -27,7 +33,7 @@ class WarehouseManagementTestCase(TestCase):
             'purchase_price': '20.00'
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Factor.objects.filter(ware_id=self.ware_fifo.id, type='input').count(), 1)
+        self.assertEqual(Factor.objects.filter(ware=self.ware_fifo, type='input').count(), 1)
 
     def test_input_transaction_weighted(self):
         response = self.client.post('/api/inventory/input/', {
@@ -36,7 +42,7 @@ class WarehouseManagementTestCase(TestCase):
             'purchase_price': '20.00'
         }, format='json')
         self.assertEqual(response.status_code, status.HTTP_201_CREATED)
-        self.assertEqual(Factor.objects.filter(ware_id=self.ware_weighted.id, type='input').count(), 1)
+        self.assertEqual(Factor.objects.filter(ware=self.ware_weighted, type='input').count(), 1)
 
     def test_output_transaction_fifo(self):
         # Input transactions

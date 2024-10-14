@@ -47,6 +47,7 @@ class FactorInputView(APIView):
             }, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
+
 class FactorOutputView(APIView):
     def post(self, request):
         serializer = FactorOutputSerializer(data=request.data)
@@ -58,10 +59,7 @@ class FactorOutputView(APIView):
             with transaction.atomic():
                 stock, total_cost = calculate_output_cost(ware, quantity)
                 if stock is None:
-                    return Response(
-                        {"error": "Insufficient stock"},
-                        status=status.HTTP_400_BAD_REQUEST
-                    )
+                    return Response({"error": "Insufficient stock"}, status=status.HTTP_400_BAD_REQUEST)
 
                 factor = Factor.objects.create(
                     ware=ware,
@@ -69,7 +67,7 @@ class FactorOutputView(APIView):
                     total_cost=total_cost,
                     type='output'
                 )
-            # Use the response serializer
+            # Use the updated response serializer
             response_serializer = FactorOutputResponseSerializer(factor)
             return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
@@ -94,7 +92,8 @@ class InventoryValuationView(APIView):
         
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-# Helper functions for cost calculations remain unchanged
+# Helper functions for cost calculations
+
 def calculate_output_cost(ware, quantity):
     if ware.cost_method == 'fifo':
         factors = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
@@ -109,21 +108,30 @@ def calculate_fifo_cost(factors, quantity):
     total_cost = Decimal('0.00')
     fifo_queue = deque(factors)
 
+    print(f"Starting FIFO calculation for quantity: {quantity}")
+    print(f"Total input factors: {len(fifo_queue)}")
+
     while remaining > 0 and fifo_queue:
         factor = fifo_queue.popleft()
         available = factor.quantity
+        print(f"Processing factor: {factor}, Available: {available}, Remaining: {remaining}")
         if available <= 0:
             continue
         take = min(available, remaining)
+        print(f"Taking {take} units from factor with purchase price {factor.purchase_price}")
         total_cost += take * factor.purchase_price
         remaining -= take
         factor.quantity -= take
         factor.save()
+        print(f"Total cost so far: {total_cost}, Remaining: {remaining}")
 
     if remaining > 0:
         # Not enough stock
+        print("Insufficient stock after processing all input factors.")
         return None, None
+    print(f"FIFO calculation successful. Total cost: {total_cost}")
     return quantity - remaining, total_cost
+
 
 def calculate_weighted_mean_cost(ware, quantity):
     inputs = Factor.objects.filter(ware=ware, type='input')

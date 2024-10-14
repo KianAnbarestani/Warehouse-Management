@@ -3,7 +3,7 @@
 from django.db import models
 
 class Ware(models.Model):
-    name = models.CharField(max_length=255)
+    name = models.CharField(max_length=255, unique=True)  # Ensure unique names
     cost_method = models.CharField(
         max_length=50,
         choices=[('fifo', 'FIFO'), ('weighted_mean', 'Weighted Mean')]
