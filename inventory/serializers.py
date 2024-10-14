@@ -1,6 +1,5 @@
 # inventory/serializers.py
 
-from decimal import Decimal
 from rest_framework import serializers
 from .models import Ware, Factor
 
@@ -12,22 +11,24 @@ class WareSerializer(serializers.ModelSerializer):
 class FactorInputSerializer(serializers.ModelSerializer):
     ware_id = serializers.PrimaryKeyRelatedField(
         queryset=Ware.objects.all(),
-        source='ware',
+        source='ware',  # Maps 'ware_id' in input to 'ware' in model
         write_only=True
     )
-    
+
     class Meta:
         model = Factor
         fields = ['ware_id', 'quantity', 'purchase_price']
-    
+
     def validate_quantity(self, value):
         if value <= 0:
             raise serializers.ValidationError("Quantity must be a positive integer.")
         return value
-    
+
     def validate_purchase_price(self, value):
-        if self.initial_data.get('type') == 'input' and (value is None or value <= Decimal('0.00')):
-            raise serializers.ValidationError("Purchase price must be a positive number for input transactions.")
+        # Purchase price is required for input transactions
+        if self.context.get('request').method == 'POST' and self.initial_data.get('type') == 'input':
+            if value is None or value <= Decimal('0.00'):
+                raise serializers.ValidationError("Purchase price must be a positive number.")
         return value
 
 class FactorOutputSerializer(serializers.Serializer):

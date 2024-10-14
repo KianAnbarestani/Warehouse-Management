@@ -22,7 +22,7 @@ class WareCreateView(generics.CreateAPIView):
 
 class FactorInputView(APIView):
     def post(self, request):
-        serializer = FactorInputSerializer(data=request.data)
+        serializer = FactorInputSerializer(data=request.data, context={'request': request})
         if serializer.is_valid():
             with transaction.atomic():
                 ware = serializer.validated_data['ware']
@@ -58,7 +58,10 @@ class FactorOutputView(APIView):
             with transaction.atomic():
                 stock, total_cost = calculate_output_cost(ware, quantity)
                 if stock is None:
-                    return Response({"error": "Insufficient stock"}, status=status.HTTP_400_BAD_REQUEST)
+                    return Response(
+                        {"error": "Insufficient stock"},
+                        status=status.HTTP_400_BAD_REQUEST
+                    )
 
                 factor = Factor.objects.create(
                     ware=ware,
@@ -68,14 +71,7 @@ class FactorOutputView(APIView):
                 )
             # Use the response serializer
             response_serializer = FactorOutputResponseSerializer(factor)
-            return Response({
-                "factor_id": factor.id,
-                "ware_id": factor.ware.id,
-                "quantity": factor.quantity,
-                "total_cost": str(factor.total_cost),
-                "created_at": factor.created_at,
-                "type": factor.type
-            }, status=status.HTTP_201_CREATED)
+            return Response(response_serializer.data, status=status.HTTP_201_CREATED)
         return Response(serializer.errors, status=status.HTTP_400_BAD_REQUEST)
 
 class InventoryValuationView(APIView):
@@ -98,8 +94,7 @@ class InventoryValuationView(APIView):
         
         return Response(serializer.data, status=status.HTTP_200_OK)
 
-# Helper functions for cost calculations
-
+# Helper functions for cost calculations remain unchanged
 def calculate_output_cost(ware, quantity):
     if ware.cost_method == 'fifo':
         factors = Factor.objects.filter(ware=ware, type='input').order_by('created_at')
